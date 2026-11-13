@@ -120,6 +120,28 @@ label{display:block;font-size:13px;color:var(--mu);margin-top:14px}
 .finance-search{margin:5px 0 10px}
 .finance-empty{text-align:center;padding:24px 10px;color:var(--mu);font-size:13px}
 .finance-pill{display:inline-block;padding:4px 8px;border-radius:8px;background:var(--ln);font-size:10px;color:var(--mu)}
+
+/* GROCERY HOME REMINDER */
+.grocery-card{border:1px solid #d8ebdc;background:linear-gradient(145deg,#f1fbf3,#fff);box-shadow:0 5px 18px rgba(38,155,112,.07)}
+.grocery-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.grocery-title{display:flex;align-items:center;gap:10px}
+.grocery-icon{width:42px;height:42px;display:grid;place-items:center;background:#dff3e4;border-radius:14px;font-size:22px}
+.grocery-count{background:#dff3e4;color:#246e4d;padding:5px 10px;border-radius:20px;font-size:11px;font-weight:800}
+.grocery-item{display:flex;align-items:center;gap:11px;padding:12px 0;border-bottom:1px solid #dcebe0}
+.grocery-item:last-child{border-bottom:0}
+.grocery-check{width:29px;height:29px;border:2px solid #8bb99a;border-radius:50%;background:white;color:white;flex-shrink:0;font-weight:800}
+.grocery-check:active{transform:scale(.94)}
+.grocery-name{font-size:14px;font-weight:700}
+.grocery-note{font-size:11px;color:#66816e;margin-top:2px}
+.grocery-remove{border:0;background:transparent;color:#9a9a9a;font-size:18px;padding:7px 9px}
+.grocery-footer{display:flex;justify-content:space-between;align-items:center;margin-top:10px;gap:8px}
+.grocery-link{border:0;background:#e1f2e5;color:#246e4d;border-radius:10px;padding:9px 12px;font-size:12px;font-weight:750}
+:root[data-theme="dark"] .grocery-card{background:#17251b;border-color:#294a32}
+:root[data-theme="dark"] .grocery-icon,:root[data-theme="dark"] .grocery-count,:root[data-theme="dark"] .grocery-link{background:#294a32;color:#b8e8c4}
+:root[data-theme="dark"] .grocery-item{border-color:#294a32}
+:root[data-theme="dark"] .grocery-note{color:#a4c4ab}
+:root[data-theme="dark"] .grocery-check{background:#1c1c1e;border-color:#6ba87a}
+
 @media(min-width:850px){
  body{padding-left:190px}
  nav{top:0;bottom:0;right:auto;width:190px;flex-direction:column;justify-content:flex-start;padding:35px 10px;border-right:1px solid var(--ln)}
@@ -169,6 +191,7 @@ Object.keys(S.hlog).forEach(date=>{
   return x;
  }).filter(Boolean);
 });
+
 /* MIGRATE OLD FINANCE EXPENSES */
 S.exp=S.exp.map(e=>({
  ...e,id:e.id||uid(),type:e.type||'expense',
@@ -176,6 +199,9 @@ S.exp=S.exp.map(e=>({
  cat:e.cat||'Others'
 }));
 S.exp=S.exp.filter(e=>e.amt>=0);
+
+/* MIGRATE SHOPPING ITEMS */
+S.shop=S.shop.map(i=>({...i,id:i.id||uid(),got:!!i.got}));
 
 function save(){
  try{localStorage.setItem(KEY,JSON.stringify(S));return true}
@@ -506,13 +532,38 @@ function shoppingForm(id=null){
  {key:'name',label:'Item',value:r.name,required:true},{key:'note',label:'Quantity / notes',value:r.note}
  ],v=>{if(id)Object.assign(r,v);else S.shop.push({id:uid(),...v,got:false})});
 }
+
+/* Remove a grocery item completely, not just hide it */
+function shopRemove(id,ask=false){
+ const item=S.shop.find(x=>x.id===id);
+ if(!item)return;
+ if(ask&&!confirm('Remove '+item.name+' from your shopping list?'))return;
+ S.shop=S.shop.filter(x=>x.id!==id);
+ save();render();
+}
+
+/* Mark as bought = remove from the entire shopping list */
+function shopBought(id){
+ const item=S.shop.find(x=>x.id===id);
+ if(!item)return;
+ S.shop=S.shop.filter(x=>x.id!==id);
+ save();render();
+}
 function shopping(){
- return `<h1>To Buy</h1><div class="mu">Your personal shopping checklist.</div><button class="btn" data-action="shop-add">＋ Add item</button>
- <div class="card">${S.shop.map(i=>`<div class="row ${i.got?'done':''}">
- <button class="chk ${i.got?'done':''}" data-action="shop-toggle" data-id="${i.id}">${i.got?'✓':''}</button>
- <div class="content"><b class="task-title">${esc(i.name)}</b><div class="mu">${esc(i.note||'')}</div></div>
- <button class="small-btn blue" data-action="shop-edit" data-id="${i.id}">Edit</button><button class="small-btn red" data-action="shop-delete" data-id="${i.id}">✕</button></div>`).join('')||'<div class="mu">Your shopping list is empty.</div>'}</div>
- ${S.shop.some(x=>x.got)?'<button class="btn secondary" data-action="shop-clear">Clear bought items</button>':''}`;
+ const pending=S.shop.filter(x=>!x.got);
+ const bought=S.shop.filter(x=>x.got);
+ return `<h1>To Buy</h1><div class="mu">Your personal shopping checklist.</div>
+ <button class="btn" data-action="shop-add">＋ Add item</button>
+ <h2>🛒 Need to buy <span class="finance-pill">${pending.length}</span></h2>
+ <div class="card">
+ ${pending.map(i=>`<div class="row">
+ <button class="chk" data-action="shop-toggle" data-id="${i.id}"></button>
+ <div class="content"><b>${esc(i.name)}</b><div class="mu">${esc(i.note||'')}</div></div>
+ <button class="small-btn blue" data-action="shop-edit" data-id="${i.id}">Edit</button>
+ <button class="small-btn red" data-action="shop-delete" data-id="${i.id}">✕</button></div>`).join('')||'<div class="mu" style="padding:8px 0">All clear! Nothing left to buy 🎉</div>'}
+ </div>
+ ${bought.length?`<h2>Previously bought</h2><div class="card">${bought.map(i=>`<div class="row"><div class="content"><b>${esc(i.name)}</b><div class="mu">${esc(i.note||'')}</div></div><span class="tag">Bought</span><button class="small-btn red" data-action="shop-delete" data-id="${i.id}">✕</button></div>`).join('')}</div>`:''}
+ `;
 }
 
 /* SETTINGS */
@@ -530,7 +581,7 @@ function settings(){
  <h2>Data management</h2><div class="card">
  <button class="btn secondary" data-action="backup-export">Export full backup</button><button class="btn secondary" data-action="backup-import">Import backup</button><button class="btn secondary" data-action="csv-export">Export finance CSV</button>
  <div class="mu" style="margin-top:12px">Your data is stored in this browser on this device. Export backups regularly to prevent data loss.</div></div>
- <h2>About</h2><div class="card"><b>MyLife OS</b><div class="mu">Personal life management dashboard · Version 3.0</div></div>`;
+ <h2>About</h2><div class="card"><b>MyLife OS</b><div class="mu">Personal life management dashboard · Version 3.1</div></div>`;
 }
 function saveSettings(){
  const fields=[['settingInc','inc'],['settingBud','bud'],['settingCal','cal']];
@@ -546,6 +597,36 @@ function saveSettings(){
 }
 
 /* HOME */
+function groceryHome(){
+ const pending=S.shop.filter(x=>!x.got);
+ if(!pending.length)return '';
+ return `
+ <h2>🛒 Grocery reminder</h2>
+ <div class="card grocery-card">
+  <div class="grocery-head">
+   <div class="grocery-title">
+    <div class="grocery-icon">🛍️</div>
+    <div><b>Things to buy</b><div style="font-size:11px;color:#66816e">Don't forget these items</div></div>
+   </div>
+   <span class="grocery-count">${pending.length} ${pending.length===1?'ITEM':'ITEMS'}</span>
+  </div>
+  <div style="margin-top:9px">
+   ${pending.map(i=>`
+    <div class="grocery-item">
+     <button class="grocery-check" aria-label="Mark ${esc(i.name)} as bought" data-action="shop-toggle" data-id="${i.id}">✓</button>
+     <div style="flex:1;min-width:0">
+      <div class="grocery-name">${esc(i.name)}</div>
+      ${i.note?`<div class="grocery-note">${esc(i.note)}</div>`:''}
+     </div>
+     <button class="grocery-remove" aria-label="Remove ${esc(i.name)}" data-action="shop-delete" data-id="${i.id}">✕</button>
+    </div>`).join('')}
+  </div>
+  <div class="grocery-footer">
+   <span style="font-size:11px;color:#66816e">Tick when you've bought it.</span>
+   <button class="grocery-link" data-action="navigate" data-tab="shop">View full list →</button>
+  </div>
+ </div>`;
+}
 function home(){
  const d=today(),tasks=S.tasks.filter(t=>t.due===d||(!t.done&&t.due&&t.due<d));
  const completed=tasks.filter(t=>t.done).length;
@@ -562,6 +643,7 @@ function home(){
  <div class="card"><div class="mu">Monthly budget left</div><div class="big">${S.set.bud?rm(S.set.bud-monthly):'—'}</div></div>
  <div class="card"><div class="mu">Calories today</div><div class="big">${calories}</div><div class="mu">/ ${S.set.cal} kcal</div></div>
  <div class="card"><div class="mu">Habits completed</div><div class="big">${habitsDone}/${S.hab.length}</div></div></div>
+ ${groceryHome()}
  <h2>Quick actions</h2><div class="quick">
  <button data-action="task-add"><span>✅</span>Task</button><button data-action="expense-add"><span>💰</span>Expense</button><button data-action="income-add"><span>💵</span>Income</button>
  <button data-action="food-add"><span>🥗</span>Food log</button><button data-action="habit-add"><span>🔥</span>Habit</button><button data-action="shop-add"><span>🛒</span>To buy</button></div>
@@ -610,6 +692,8 @@ function importBackup(){
    S=data;S.set={...defaults.set,...(S.set||{})};S.hlog=S.hlog||{};
    S.hab=S.hab.map(h=>typeof h==='string'?{id:uid(),name:h}:h);
    Object.keys(S.hlog).forEach(d=>S.hlog[d]=(S.hlog[d]||[]).map(x=>typeof x==='number'?S.hab[x]?.id:x).filter(Boolean));
+   S.shop=Array.isArray(S.shop)?S.shop.map(i=>({...i,id:i.id||uid(),got:!!i.got})):[];
+   S.exp=Array.isArray(S.exp)?S.exp.map(e=>({...e,id:e.id||uid(),type:e.type||'expense',amt:Number(e.amt)||0,date:e.date||today(),cat:e.cat||'Others'})):[];
    save();go('home');alert('Backup imported successfully!');
   }catch(e){alert('Invalid backup file.')}
  };
@@ -619,7 +703,7 @@ function importBackup(){
 /* GLOBAL CLICK HANDLER */
 document.addEventListener('click',e=>{
  const el=e.target.closest('[data-action]');if(!el)return;
- const a=el.dataset.action,id=el.dataset.id,index=Number(el.dataset.index);
+ const a=el.dataset.action,id=el.dataset.id;
  switch(a){
  case 'navigate':go(el.dataset.tab);break;
  case 'task-add':taskForm();break;
@@ -643,9 +727,8 @@ document.addEventListener('click',e=>{
  case 'recipe-filter':filter=el.dataset.filter;render();break;
  case 'shop-add':shoppingForm();break;
  case 'shop-edit':shoppingForm(id);break;
- case 'shop-delete':removeItem('shop',id);break;
- case 'shop-toggle':toggle('shop',id,'got');break;
- case 'shop-clear':if(confirm('Clear all purchased items?')){S.shop=S.shop.filter(x=>!x.got);save();render()}break;
+ case 'shop-delete':shopRemove(id,true);break;
+ case 'shop-toggle':shopBought(id);break;
  case 'settings-save':saveSettings();break;
  case 'backup-export':download('mylife-backup.json',JSON.stringify(S,null,2),'application/json');break;
  case 'backup-import':importBackup();break;
