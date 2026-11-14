@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -70,6 +69,22 @@ label{display:block;font-size:13px;color:var(--mu);margin-top:14px}
 .finance-tx-actions{display:flex;gap:4px;justify-content:flex-end;margin-top:5px}.finance-tx-actions button{border:0;background:transparent;color:var(--mu);font-size:11px;padding:4px}
 .finance-search{margin:5px 0 10px}.finance-empty{text-align:center;padding:24px 10px;color:var(--mu);font-size:13px}.finance-pill{display:inline-block;padding:4px 8px;border-radius:8px;background:var(--ln);font-size:10px;color:var(--mu)}
 
+/* DAILY FINANCE */
+.day-nav{display:flex;align-items:flex-start;gap:8px;margin:6px 0 10px}
+.day-nav>button{width:46px;height:46px;border:0;border-radius:14px;background:var(--card);color:var(--tx);font-size:24px;box-shadow:var(--shadow);flex-shrink:0}
+.day-nav input{margin:0;text-align:center;font-weight:700}
+.day-row{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--ln);cursor:pointer}.day-row:last-of-type{border-bottom:0}
+.day-line{position:absolute;left:0;right:0;border-top:1.5px dashed var(--mu);pointer-events:none}
+.day-line span{position:absolute;right:0;top:-15px;font-size:9px;color:var(--mu)}
+
+/* FINANCE VIEWS */
+.fz-tabs{display:flex;background:var(--ln);border-radius:13px;padding:3px;margin:8px 0 12px}
+.fz-tabs button{flex:1;border:0;background:transparent;color:var(--mu);padding:10px;border-radius:10px;font-weight:700;font-size:13px}
+.fz-tabs button.active{background:var(--card);color:var(--tx);box-shadow:var(--shadow)}
+.fz-big{font-size:34px;font-weight:800;letter-spacing:-1px;margin-top:2px;overflow-wrap:anywhere}
+.fz-stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+.fz-stat{background:var(--bg);border-radius:14px;padding:11px;min-width:0}.fz-stat small{display:block;color:var(--mu);font-size:11px;margin-bottom:3px}.fz-stat b{overflow-wrap:anywhere}
+.fz-group-head{display:flex;justify-content:space-between;font-size:12px;color:var(--mu);font-weight:700;padding:14px 0 4px;border-bottom:1px solid var(--ln)}
 /* GROCERY */
 .grocery-card{border:1px solid #d8ebdc;background:linear-gradient(145deg,#f1fbf3,#fff);box-shadow:0 5px 18px rgba(38,155,112,.07)}
 .grocery-head{display:flex;align-items:center;justify-content:space-between;gap:10px}.grocery-title{display:flex;align-items:center;gap:10px}
@@ -165,7 +180,7 @@ const fd=d=>d?d.split('-').reverse().join('/'):'';
 const sum=(a,k)=>a.reduce((v,x)=>v+(Number(x[k])||0),0);
 const addDays=(d,n)=>{const x=new Date(d+'T00:00:00Z');x.setUTCDate(x.getUTCDate()+n);return x.toISOString().slice(0,10)};
 const month=()=>today().slice(0,7);
-let tab='home',filter='All',search='',financeFilter='all',financeSearch='',financeMonth=month();
+let tab='home',filter='All',search='',financeFilter='all',financeSearch='',financeMonth=month(),financeView='day',financeDay=today();
 let debtTab='lent',debtFilter='all',debtSearch='';
 if(S.set.theme!=='auto')document.documentElement.dataset.theme=S.set.theme;
 
@@ -226,36 +241,98 @@ const CATS=['Food & Drinks','Groceries','Transportation','Shopping','Household',
 const PAY=['Cash','Debit Card','Credit Card','Online Banking','E-wallet'];
 const INCOME_CATS=['Salary','Freelance','Business','Bonus','Allowance','Refund','Investment','Others'];
 const catIcon=c=>({'Food & Drinks':'🍜','Groceries':'🛒','Transportation':'🚗','Shopping':'🛍️','Household':'🏠','Utilities & Bills':'💡','Healthcare':'💊','Entertainment':'🎬','Family':'👨‍👩‍👧','Housing':'🏡','Commitments':'📑','Education':'📚','Salary':'💰','Freelance':'💻','Business':'💼','Bonus':'🎁','Allowance':'💵','Refund':'↩️','Investment':'📈','Others':'📌'})[c]||'📌';
-function financeForm(id=null,defaultType='expense'){
+function financeForm(id=null,defaultType='expense',defaultDate=''){
  const r=S.exp.find(x=>x.id===id)||{},type=r.type||defaultType,categories=type==='income'?INCOME_CATS:CATS;
  openModal(id?'Edit transaction':type==='income'?'Add income':'Add expense',[
  {key:'type',label:'Transaction type',type:'select',options:['expense','income'],value:type},{key:'amt',label:'Amount (RM)',type:'number',value:r.amt,required:true},
- {key:'desc',label:'Description',value:r.desc,required:true},{key:'date',label:'Date',type:'date',value:r.date||today(),required:true},
+ {key:'desc',label:'Description',value:r.desc,required:true},{key:'date',label:'Date',type:'date',value:r.date||defaultDate||today(),required:true},
  {key:'cat',label:'Category',type:'select',options:categories,value:r.cat||(type==='income'?'Salary':CATS[0])},
  {key:'pay',label:'Payment method',type:'select',options:PAY,value:r.pay||PAY[0]},{key:'note',label:'Notes',value:r.note}
  ],v=>{const item={...v,id:id||uid(),amt:Number(v.amt),type:v.type};if(id){const i=S.exp.findIndex(x=>x.id===id);if(i>=0)S.exp[i]=item}else S.exp.push(item)});
 }
+/* FINANCE: Daily / Weekly / Monthly (one anchor date drives all three views) */
+const finDate=d=>new Date(d+'T12:00:00');
+const finLong=d=>finDate(d).toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+const finGroupLabel=d=>finDate(d).toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'});
+const finShort=d=>finDate(d).toLocaleDateString('en-GB',{day:'numeric',month:'short'});
+const weekStart=d=>addDays(d,-((finDate(d).getDay()+6)%7));
+const isExp=t=>t.type!=='income';
+function finRange(){
+ const a=financeDay;
+ if(financeView==='day')return{from:a,to:a};
+ if(financeView==='week'){const f=weekStart(a);return{from:f,to:addDays(f,6)}}
+ const mk=a.slice(0,7),[y,m]=mk.split('-').map(Number),dim=new Date(y,m,0).getDate();
+ return{from:mk+'-01',to:mk+'-'+String(dim).padStart(2,'0')};
+}
+function finShift(n){
+ if(financeView==='day')financeDay=addDays(financeDay,n);
+ else if(financeView==='week')financeDay=addDays(financeDay,7*n);
+ else{
+  const [y,m]=financeDay.slice(0,7).split('-').map(Number),dt=new Date(Date.UTC(y,m-1+n,1));
+  const k=dt.getUTCFullYear()+'-'+String(dt.getUTCMonth()+1).padStart(2,'0');
+  financeDay=k===month()?today():k+'-01';
+ }
+ financeMonth=financeDay.slice(0,7);
+}
+function finBars(items,activeKey,clickable){
+ const max=Math.max(1,...items.map(i=>i.value));
+ return `<div class="finance-chart">${items.map(i=>`<div class="finance-bar-wrap" ${clickable?`data-action="fin-open-day" data-day="${i.key}" style="cursor:pointer"`:''}><small style="font-size:9px">${i.value?Math.round(i.value):''}</small><div class="finance-bar ${i.key===activeKey?'current':''}" style="height:${Math.max(3,i.value/max*90)}px"></div><small>${i.label}</small></div>`).join('')}</div>`;
+}
+function txRow(t){
+ return `<div class="finance-tx"><div class="finance-tx-icon">${catIcon(t.cat)}</div><div class="finance-tx-info"><strong>${esc(t.desc||t.cat)}</strong><small>${esc(t.cat||'Others')}${t.pay?' · '+esc(t.pay):''}</small>${t.note?`<small>${esc(t.note)}</small>`:''}</div><div class="finance-tx-right"><div class="finance-tx-amount" style="color:${t.type==='income'?'#269b70':'var(--tx)'}">${t.type==='income'?'+':'−'} ${rm(t.amt)}</div><div class="finance-tx-actions"><button data-action="finance-edit" data-id="${t.id}">Edit</button><button data-action="finance-delete" data-id="${t.id}">Delete</button></div></div></div>`;
+}
 function finance(){
- const list=S.exp.filter(e=>e.date?.slice(0,7)===financeMonth),income=Number(S.set.inc)||0,txIncome=sum(list.filter(x=>x.type==='income'),'amt'),expense=sum(list.filter(x=>x.type!=='income'),'amt');
- const actualIncome=txIncome+(financeMonth===month()?income:0),balance=actualIncome-expense,budget=Number(S.set.bud)||0,pct=budget?expense/budget*100:0,remaining=budget-expense;
- const categories={};list.filter(x=>x.type!=='income').forEach(e=>categories[e.cat||'Others']=(categories[e.cat||'Others']||0)+Number(e.amt));
- const sorted=Object.entries(categories).sort((a,b)=>b[1]-a[1]),colors=['#269b70','#4d8edb','#d99a42','#9b79c9','#db7777','#61aab0','#8b9c70','#cf83a9'];
- const months=[],base=new Date(financeMonth+'-01T12:00:00');
- for(let i=5;i>=0;i--){const d=new Date(base.getFullYear(),base.getMonth()-i,1),key=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');months.push({key,label:d.toLocaleDateString('en',{month:'short'}),value:sum(S.exp.filter(t=>t.type!=='income'&&t.date?.slice(0,7)===key),'amt')})}
- const max=Math.max(1,...months.map(x=>x.value)),query=financeSearch.toLowerCase();
- const visible=list.filter(t=>(financeFilter==='all'||(financeFilter==='income'?t.type==='income':t.type!=='income'))&&(String(t.desc||'')+' '+String(t.cat||'')+' '+String(t.note||'')).toLowerCase().includes(query)).sort((a,b)=>b.date.localeCompare(a.date));
- return `<div class="finance-heading"><div><h1>Finance</h1><div class="mu">Your money, under control.</div></div><input class="finance-month" id="financeMonth" type="month" value="${financeMonth}"></div>
- <div class="finance-hero"><div class="mu">Monthly balance</div><div class="finance-balance">${rm(balance)}</div><div class="finance-stats"><div class="finance-stat"><small>↗ Income</small><strong>${rm(actualIncome)}</strong></div><div class="finance-stat"><small>↘ Expenses</small><strong>${rm(expense)}</strong></div></div></div>
- <div class="grid"><div class="card"><div class="mu">Monthly budget</div><div class="big">${budget?rm(budget):'Not set'}</div></div><div class="card"><div class="mu">Remaining budget</div><div class="big" style="color:${remaining<0?'var(--bad)':'var(--ok)'}">${budget?rm(remaining):'—'}</div></div></div>
- <div class="finance-actions" style="margin-top:13px"><button style="flex:1;background:#246e4d;color:white;padding:14px" data-action="income-add">＋ Add income</button><button style="flex:1;background:#246e4d;color:white;padding:14px" data-action="expense-add">＋ Add expense</button></div>
- ${budget&&pct>=80?`<div class="warn">${pct>=100?'⚠️ You have exceeded your monthly budget.':'⚠️ You have used '+Math.round(pct)+'% of your monthly budget.'}</div>`:''}
- <h2>Budget overview</h2><div class="card"><div class="finance-budget-top"><div><div class="mu">Total spent</div><div class="finance-budget-number">${rm(expense)}</div></div><span class="finance-pill">${budget?Math.round(pct)+'% used':'No budget'}</span></div><div class="finance-progress"><span style="width:${Math.min(pct,100)}%;background:${pct>=100?'#dc654f':pct>=80?'#d99a42':'#269b70'}"></span></div><div class="finance-budget-top"><span class="mu">${budget?rm(budget)+' budget':'Set your budget in Settings'}</span><span class="mu">${budget?rm(Math.max(0,remaining))+' left':''}</span></div></div>
- <h2>Spending breakdown</h2><div class="card">${sorted.length?sorted.map(([name,value],i)=>`<div class="finance-cat"><div class="finance-cat-top"><span>${catIcon(name)} ${esc(name)}</span><b>${rm(value)} · ${expense?Math.round(value/expense*100):0}%</b></div><div class="finance-cat-track"><span style="width:${expense?value/expense*100:0}%;background:${colors[i%colors.length]}"></span></div></div>`).join(''):'<div class="finance-empty">No expenses recorded for this month.</div>'}</div>
- <h2>Spending trend</h2><div class="card"><div class="mu">Expenses over the last six months</div><div class="finance-chart">${months.map(m=>`<div class="finance-bar-wrap"><div class="finance-bar ${m.key===financeMonth?'current':''}" style="height:${Math.max(3,m.value/max*90)}px" title="${rm(m.value)}"></div><small>${m.label}</small></div>`).join('')}</div></div>
- <div class="finance-heading"><h2>Transactions</h2><span class="finance-pill">${visible.length} records</span></div><div class="card"><div class="segment"><button class="${financeFilter==='all'?'active':''}" data-action="finance-filter" data-filter="all">All</button><button class="${financeFilter==='expense'?'active':''}" data-action="finance-filter" data-filter="expense">Expenses</button><button class="${financeFilter==='income'?'active':''}" data-action="finance-filter" data-filter="income">Income</button></div>
+ const t0=today(),{from,to}=finRange(),view=financeView;
+ const inRange=S.exp.filter(e=>e.date>=from&&e.date<=to);
+ const spent=sum(inRange.filter(isExp),'amt'),txInc=sum(inRange.filter(t=>!isExp(t)),'amt');
+ const budget=Number(S.set.bud)||0,setInc=Number(S.set.inc)||0;
+ const periodLabel=view==='day'?(financeDay===t0?'Today · ':'')+finLong(from):view==='week'?finShort(from)+' – '+finShort(to)+' '+to.slice(0,4):finDate(from).toLocaleDateString('en-GB',{month:'long',year:'numeric'});
+ const hasToday=t0>=from&&t0<=to,addDate=hasToday?t0:financeDay;
+
+ /* header + tabs + navigator */
+ let html=`<div class="finance-heading"><div><h1>Finance</h1><div class="mu">Your money, simply tracked.</div></div></div>
+ <div class="fz-tabs">${[['day','Daily'],['week','Weekly'],['month','Monthly']].map(([k,n])=>`<button class="${view===k?'active':''}" data-action="finance-view" data-view="${k}">${n}</button>`).join('')}</div>
+ <div class="day-nav"><button data-action="fin-shift" data-n="-1" aria-label="Previous">‹</button><div style="flex:1;min-width:0"><input type="${view==='month'?'month':'date'}" id="financeDate" value="${view==='month'?financeDay.slice(0,7):financeDay}"><div class="mu" style="text-align:center;margin-top:5px">${esc(periodLabel)}</div></div><button data-action="fin-shift" data-n="1" aria-label="Next">›</button></div>
+ ${!hasToday?`<button class="small-btn blue" style="width:100%;margin-bottom:8px" data-action="fin-today">Jump to today</button>`:''}`;
+
+ /* summary */
+ if(view==='day'){
+  html+=`<div class="card"><div class="mu">Spent</div><div class="fz-big">${rm(spent)}</div>
+  <div class="fz-stats"><div class="fz-stat"><small>Income</small><b style="color:#269b70">${rm(txInc)}</b></div><div class="fz-stat"><small>Transactions</small><b>${inRange.length}</b></div></div></div>`;
+ }else if(view==='week'){
+  const days=[];for(let i=0;i<7;i++){const k=addDays(from,i);days.push({key:k,label:finDate(k).toLocaleDateString('en',{weekday:'short'}).slice(0,2),name:finDate(k).toLocaleDateString('en-GB',{weekday:'short',day:'numeric'}),value:sum(inRange.filter(t=>isExp(t)&&t.date===k),'amt')})}
+  const maxDay=Math.max(1,...days.map(d=>d.value));
+  html+=`<div class="card"><div class="mu">Spent this week</div><div class="fz-big">${rm(spent)}</div>
+  <div class="fz-stats"><div class="fz-stat"><small>Income</small><b style="color:#269b70">${rm(txInc)}</b></div><div class="fz-stat"><small>Daily average</small><b>${rm(spent/7)}</b></div></div>${finBars(days,hasToday?t0:'',true)}</div>
+  <h2>Daily breakdown</h2><div class="card">${days.map(d=>`<div class="day-row" data-action="fin-open-day" data-day="${d.key}"><div style="width:68px;flex-shrink:0"><b style="font-size:13px">${d.name}</b></div><div style="flex:1;min-width:0"><div class="finance-cat-track"><span style="width:${d.value/maxDay*100}%;background:#269b70"></span></div></div><b style="min-width:84px;text-align:right;font-size:13px">${rm(d.value)}</b></div>`).join('')}</div>`;
+ }else{
+  const mk=financeDay.slice(0,7),income=txInc+(mk===month()?setInc:0),remaining=budget-spent,pct=budget?spent/budget*100:0;
+  const cats={};inRange.filter(isExp).forEach(e=>cats[e.cat||'Others']=(cats[e.cat||'Others']||0)+Number(e.amt));
+  const sorted=Object.entries(cats).sort((a,b)=>b[1]-a[1]),colors=['#269b70','#4d8edb','#d99a42','#9b79c9','#db7777','#61aab0','#8b9c70','#cf83a9'];
+  const [y,m]=mk.split('-').map(Number),trend=[];
+  for(let i=5;i>=0;i--){const dt=new Date(Date.UTC(y,m-1-i,1)),k=dt.getUTCFullYear()+'-'+String(dt.getUTCMonth()+1).padStart(2,'0');trend.push({key:k,label:dt.toLocaleDateString('en',{month:'short',timeZone:'UTC'}),value:sum(S.exp.filter(t=>isExp(t)&&t.date?.slice(0,7)===k),'amt')})}
+  html+=`<div class="card"><div class="mu">Spent this month</div><div class="fz-big">${rm(spent)}</div>
+  <div class="fz-stats"><div class="fz-stat"><small>Income</small><b style="color:#269b70">${rm(income)}</b></div><div class="fz-stat"><small>Remaining budget</small><b style="color:${budget&&remaining<0?'var(--bad)':'var(--tx)'}">${budget?rm(remaining):'Not set'}</b></div></div>
+  ${budget?`<div class="finance-progress"><span style="width:${Math.min(pct,100)}%;background:${pct>=100?'#dc654f':pct>=80?'#d99a42':'#269b70'}"></span></div><div class="finance-budget-top"><span class="mu">${Math.round(pct)}% of ${rm(budget)}</span><span class="mu">${pct>=100?'Over budget':''}</span></div>`:'<div class="mu" style="margin-top:10px">Set a monthly budget in Settings.</div>'}</div>
+  ${budget&&pct>=80?`<div class="warn">${pct>=100?'⚠️ You have exceeded your monthly budget.':'⚠️ You have used '+Math.round(pct)+'% of your monthly budget.'}</div>`:''}
+  <h2>Categories</h2><div class="card">${sorted.length?sorted.map(([n,v],i)=>`<div class="finance-cat"><div class="finance-cat-top"><span>${catIcon(n)} ${esc(n)}</span><b>${rm(v)} · ${spent?Math.round(v/spent*100):0}%</b></div><div class="finance-cat-track"><span style="width:${spent?v/spent*100:0}%;background:${colors[i%colors.length]}"></span></div></div>`).join(''):'<div class="finance-empty">No expenses this month.</div>'}</div>
+  <h2>Spending trend</h2><div class="card"><div class="mu">Last six months</div>${finBars(trend,mk,false)}</div>`;
+ }
+
+ /* add buttons */
+ html+=`<div class="finance-actions" style="margin-top:14px"><button style="flex:1;background:#246e4d;color:white;padding:14px" data-action="income-add" data-date="${addDate}">＋ Income</button><button style="flex:1;background:#246e4d;color:white;padding:14px" data-action="expense-add" data-date="${addDate}">＋ Expense</button></div>`;
+
+ /* transactions grouped by date, with search + filter */
+ const q=financeSearch.toLowerCase();
+ const visible=inRange.filter(t=>(financeFilter==='all'||(financeFilter==='income'?!isExp(t):isExp(t)))&&(String(t.desc||'')+' '+String(t.cat||'')+' '+String(t.note||'')).toLowerCase().includes(q));
+ const groups={};visible.forEach(t=>(groups[t.date]=groups[t.date]||[]).push(t));
+ const dates=Object.keys(groups).sort().reverse();
+ html+=`<div class="finance-heading"><h2>Transactions</h2><span class="finance-pill">${visible.length} records</span></div><div class="card">
+ <div class="segment"><button class="${financeFilter==='all'?'active':''}" data-action="finance-filter" data-filter="all">All</button><button class="${financeFilter==='expense'?'active':''}" data-action="finance-filter" data-filter="expense">Expenses</button><button class="${financeFilter==='income'?'active':''}" data-action="finance-filter" data-filter="income">Income</button></div>
  <input class="finance-search" id="financeSearch" placeholder="Search transactions..." value="${esc(financeSearch)}">
- ${visible.length?visible.map(t=>`<div class="finance-tx"><div class="finance-tx-icon">${catIcon(t.cat)}</div><div class="finance-tx-info"><strong>${esc(t.desc||t.cat)}</strong><small>${fd(t.date)} · ${esc(t.cat||'Others')} · ${esc(t.pay||'')}</small>${t.note?`<small>${esc(t.note)}</small>`:''}</div><div class="finance-tx-right"><div class="finance-tx-amount" style="color:${t.type==='income'?'#269b70':'var(--tx)'}">${t.type==='income'?'+':'−'} ${rm(t.amt)}</div><div class="finance-tx-actions"><button data-action="finance-edit" data-id="${t.id}">Edit</button><button data-action="finance-delete" data-id="${t.id}">Delete</button></div></div></div>`).join(''):'<div class="finance-empty">No transactions found. Add your first transaction.</div>'}</div>
- <div class="mu" style="text-align:center;margin:15px 0">Monthly income from Settings is included in the current month's balance. Additional income transactions are added on top.</div>`;
+ ${dates.length?dates.map(d=>`<div class="fz-group-head"><span>${finGroupLabel(d)}${d===t0?' · Today':''}</span><span>${rm(sum(groups[d].filter(isExp),'amt'))}</span></div>${groups[d].map(txRow).join('')}`).join(''):'<div class="finance-empty">No transactions found for this period.</div>'}</div>
+ ${view==='month'?'<div class="mu" style="text-align:center;margin:15px 0">Monthly income from Settings is included in the current month. Income transactions are added on top.</div>':''}`;
+ return html;
 }
 
 /* HEALTH */
@@ -493,7 +570,8 @@ function render(){
  if(recipeInput)recipeInput.addEventListener('input',e=>{search=e.target.value;const pos=e.target.selectionStart,scroll=window.scrollY;render();const next=$('#recipeSearch');next.focus();next.setSelectionRange(pos,pos);window.scrollTo(0,scroll)});
  const financeInput=$('#financeSearch');
  if(financeInput)financeInput.addEventListener('input',e=>{financeSearch=e.target.value;const pos=e.target.selectionStart,scroll=window.scrollY;render();const next=$('#financeSearch');next.focus();next.setSelectionRange(pos,pos);window.scrollTo(0,scroll)});
- const monthInput=$('#financeMonth');if(monthInput)monthInput.addEventListener('change',e=>{financeMonth=e.target.value||month();render()});
+ const monthInput=$('#financeMonth');if(monthInput)monthInput.addEventListener('change',e=>{financeMonth=e.target.value||month();financeDay=financeMonth===month()?today():financeMonth+'-01';render()});
+ const dateInput=$('#financeDate');if(dateInput)dateInput.addEventListener('change',e=>{const v=e.target.value;if(!v)return;financeDay=v.length===7?(v===month()?today():v+'-01'):v;financeMonth=financeDay.slice(0,7);render()});
  const debtInput=$('#debtSearch');
  if(debtInput)debtInput.addEventListener('input',e=>{debtSearch=e.target.value;const pos=e.target.selectionStart,scroll=window.scrollY;render();const next=$('#debtSearch');next.focus();next.setSelectionRange(pos,pos);window.scrollTo(0,scroll)});
 }
@@ -529,8 +607,12 @@ document.addEventListener('click',e=>{
  switch(a){
  case 'navigate':go(el.dataset.tab);break;
  case 'task-add':taskForm();break;case 'task-edit':taskForm(id);break;case 'task-delete':removeItem('tasks',id);break;case 'task-toggle':toggleTask(id);break;
- case 'expense-add':financeForm(null,'expense');break;case 'income-add':financeForm(null,'income');break;
- case 'expense-edit':case 'finance-edit':financeForm(id);break;case 'expense-delete':case 'finance-delete':removeItem('exp',id);break;
+ case 'expense-add':financeForm(null,'expense',el.dataset.date||'');break;case 'income-add':financeForm(null,'income',el.dataset.date||'');break;
+ case 'finance-view':financeView=el.dataset.view;render();break;
+ case 'fin-shift':finShift(Number(el.dataset.n));render();break;
+ case 'fin-today':financeDay=today();financeMonth=month();render();break;
+ case 'fin-open-day':financeDay=el.dataset.day;financeMonth=financeDay.slice(0,7);financeView='day';render();window.scrollTo({top:0,behavior:'smooth'});break;
+ case 'finance-edit':financeForm(id);break;case 'finance-delete':removeItem('exp',id);break;
  case 'finance-filter':financeFilter=el.dataset.filter;render();break;
  case 'food-add':foodForm();break;case 'food-edit':foodForm(id);break;case 'food-delete':removeItem('food',id);break;
  case 'habit-add':habitForm();break;case 'habit-edit':habitForm(id);break;case 'habit-delete':habitDelete(id);break;case 'habit-toggle':habitToggle(id);break;
